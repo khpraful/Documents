@@ -1,0 +1,83 @@
+References:
+https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/
+https://docs.mongodb.com/manual/tutorial/deploy-replica-set/
+https://docs.mongodb.com/manual/reference/configuration-options/
+https://docs.mongodb.com/manual/tutorial/expand-replica-set/
+
+Step 1: Create 3 EC2 instances with ubuntu linux AMI
+
+Step 2: Update hostname and hosts files in each instance
+sudo nano /etc/hostname <override ip with desired hostname here>
+sudo nano /etc/hosts <provide the ip addresses and hostnames of all instances
+sudo reboot
+
+Step 3: Install mongodb on each instance
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4
+echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu bionic/mongodb-org/4.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-4.0.list
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+
+Step 4: Start mongodb
+sudo service mongod start
+
+Step 5: Start mongo shell
+mongo
+
+Step 6: Update /etc/mongodb.conf file in each instance to specify replication
+sudo nano /etc/mongod.conf
+net:
+  bind_ip: List of Ips/hostnames (comma separated) for the mongod instance that remote clients (including the other members of the replica set) can use to connect to the instance
+  port: 27017
+replication:
+  replSetName = <Common replica name across all instances>
+
+Step 7: Apply config and restart mongodb
+mongod --config /etc/mongod.conf
+sudo service mongod stop
+sudo service mongod restart
+
+Step 8: Deploy replicaset
+Open mongo shell in one of the instances that is meant to be PRIMARY node
+Initiate replicaset (this should be done only on PRIMARY node)
+rs.initiate( {
+   _id : "mongodb-replica",
+   members: [
+      { _id: 0, host: "mongodb-server-01:27017" },
+      { _id: 1, host: "mongodb-server-02:27017" },
+      { _id: 2, host: "mongodb-server-03:27017" }    
+   ]
+})
+--------------------------------------------------------
+//for 2 instances
+rs.initiate( {
+   _id : "mongodb-rs",
+   members: [
+      { _id: 0, host: "mongodb-server-01:27017" },
+      { _id: 1, host: "mongodb-server-02:27017" }
+      ]
+})
+--------------------------------------------------------
+Display replicaset configuration object
+rs.conf()
+Check if replicaset has PRIMARY instance
+rs.status()
+Open mongo shell in SECONDARY nodes and set as slaves
+rs.slaveOk()
+
+Step 8: Test replication
+Create DB in PRIMARY node
+Create collection in the DB
+Insert document into collection
+DB, Collection and Document will be visible in SECONDARY nodes and can be queried (READ operation only)
+Try writing into DB through SECONDARY nodes and it won't be allowed
+
+
+--------------------------------
+Adding new member to replica set
+--------------------------------
+Repeat Steps 1 to 7 on new instance
+Go to PRIMARY node, log inot mongo shell and issue rs.add() command as follows:
+	rs.add({host:"<new member hostname>:27017", priority:0, votes:0})
+Issue rs.status() commnad to check new node has reached SECONDARY state
+Test replicaiton in new node using Step 8
+
